@@ -1172,6 +1172,15 @@ void TextEditor::handleMouseInteractions() {
 		glyphPos,
 		cursorPos);
 
+	// update hovered glyph for external queries
+	if (overText) {
+		hoveredGlyphLine = static_cast<int>(glyphPos.line);
+		hoveredGlyphColumn = static_cast<int>(glyphPos.index);
+	} else {
+		hoveredGlyphLine = -1;
+		hoveredGlyphColumn = -1;
+	}
+
 	panning &= config.panMode && ImGui::IsMouseDown(ImGuiMouseButton_Middle);
 
 	// handle middle mouse button panning
@@ -3912,7 +3921,7 @@ void TextEditor::Document::deleteLines(size_t start, size_t end) {
 
 void TextEditor::Document::clearDocument() {
 	if (deletor) {
-		for (size_t i = 0; i <= size(); i++) {
+		for (size_t i = 0; i < size(); i++) {
 			deletor(i, at(i).userData);
 		}
 	}
@@ -8164,6 +8173,12 @@ bool TextEditor::AutoComplete::render(Document& document, Cursors& cursors, Type
 
 			} else {
 				ImGui::TextUnformatted(configuration.noSuggestionsLabel.c_str());
+
+				// Close popup on Enter, Tab or Escape when no suggestions
+				if (ImGui::IsKeyPressed(ImGuiKey_Tab) || ImGui::IsKeyPressed(ImGuiKey_Enter) ||
+					ImGui::IsKeyPressed(ImGuiKey_KeypadEnter) || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+					requestDeactivation = true;
+				}
 			}
 		}
 

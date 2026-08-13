@@ -494,7 +494,7 @@ public:
 	};
 
 	// language support
-	struct Language {
+	struct IMGUI_API Language {
 		// name of the language
 		std::string name;
 
@@ -675,12 +675,20 @@ public:
 	// configure and activate autocomplete (passing nullptr deactivates it)
 	inline void SetAutoCompleteConfig(const AutoCompleteConfig* autoCompleteConfig) { autocomplete.setConfig(autoCompleteConfig); }
 
+	// check if autocomplete popup is currently visible
+	inline bool IsAutoCompleteActive() const { return autocomplete.isActive(); }
+
+	// access mouse hover position (updated each render, -1 when not over text)
+	inline int GetHoveredLine() const { return hoveredGlyphLine; }
+	inline int GetHoveredColumn() const { return hoveredGlyphColumn; }
+	inline bool IsHoveringText() const { return hoveredGlyphLine >= 0; }
+
 	// provide autocomplete suggestions asynchronously (in case a callback takes to long and lookup is handled in a separate thread/process)
 	// this call is not threadsafe and must be called from the rendering thread (you must synchronize with your lookup thread yourself)
 	inline void SetAutoCompleteSuggestions(const std::vector<std::string>& suggestions) { autocomplete.setSuggestions(suggestions); }
 
 	// support functions for unicode codepoints
-	struct CodePoint {
+	struct IMGUI_API CodePoint {
 		static std::string_view::const_iterator skipBOM(std::string_view::const_iterator i, std::string_view::const_iterator end);
 		static std::string_view::const_iterator read(std::string_view::const_iterator i, std::string_view::const_iterator end, ImWchar* codepoint);
 		static size_t write(char* i, ImWchar codepoint); // must point to buffer of 4 characters (returns number of characters written)
@@ -955,7 +963,7 @@ protected:
 	};
 
 	// the document being edited (Lines of Glyphs)
-	class Document : public std::vector<Line> {
+	class IMGUI_API Document : public std::vector<Line> {
 	public:
 		// constructor
 		Document() { emplace_back(); }
@@ -1035,7 +1043,7 @@ protected:
 	} document;
 
 	// a single cursor
-	class Cursor {
+	class IMGUI_API Cursor {
 	public:
 		// constructors
 		Cursor() = default;
@@ -1097,7 +1105,7 @@ protected:
 	};
 
 	// overlay to track the current list of cursors
-	class Cursors : public std::vector<Cursor> {
+	class IMGUI_API Cursors : public std::vector<Cursor> {
 	public:
 		// constructor
 		Cursors() { clearAll(); }
@@ -1179,7 +1187,7 @@ protected:
 	};
 
 	// a collection of actions for a complete transaction
- 	class Transaction : public std::vector<Action> {
+ 	class IMGUI_API Transaction : public std::vector<Action> {
 	public:
 		// access state before/after transactions
 		inline void setBeforeState(const Cursors& cursors) { before = cursors; }
@@ -1198,7 +1206,7 @@ protected:
 	};
 
 	// overlay for managing the transaction list to support do/undo/redo
- 	class Transactions : public std::vector<std::shared_ptr<Transaction>> {
+ 	class IMGUI_API Transactions : public std::vector<std::shared_ptr<Transaction>> {
 	public:
 		// reset the transactions
 		void reset();
@@ -1231,7 +1239,7 @@ protected:
 	} transactions;
 
 	// overlay to colorizer text (based on language tokenizing)
-	class Colorizer {
+	class IMGUI_API Colorizer {
 	public:
 		// update state (if required)
 		bool update(const Config& config, Document& document);
@@ -1254,6 +1262,8 @@ protected:
 
 	// overlay to manage details about bracketed text
 	struct BracketPair {
+		BracketPair() = default;
+
 		BracketPair(ImWchar startChar, DocPos start, ImWchar endChar, DocPos end, size_t level, bool visible) :
 			startChar(startChar), start(start), endChar(endChar), end(end), level(level), visible(visible) {}
 
@@ -1274,7 +1284,7 @@ protected:
 
 	// overlay for matching brackets (visible and invisible)
 	// invisible brackets are for languages who's blocks are indent based (e.h. Python)
-	class Bracketeer : public std::vector<BracketPair> {
+	class IMGUI_API Bracketeer : public std::vector<BracketPair> {
 	public:
 		// update state (if required)
 		void update(const Config& config, Document& document);
@@ -1503,6 +1513,10 @@ protected:
 		void updateState(Document& document, const Language* language);
 		void refreshSuggestions();
 	} autocomplete;
+
+	// mouse hover state (updated during render)
+	int hoveredGlyphLine = -1;
+	int hoveredGlyphColumn = -1;
 
 	// access the editor's text
 	void setText(const std::string_view& text);
