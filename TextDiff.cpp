@@ -16,6 +16,11 @@
 #include "dtl.h"
 #include "TextDiff.h"
 
+// Dear ImGui 1.93 renamed ImDrawFlags_RoundCornersXXX to ImDrawFlags_RoundXXX: the new name, for older versions
+#if IMGUI_VERSION_NUM < 19298
+#define ImDrawFlags_RoundAll ImDrawFlags_RoundCornersAll
+#endif
+
 
 //
 //	TextDiff::TextDiff
@@ -349,7 +354,7 @@ void TextDiff::IntegratedView::renderScrollbar() {
 			&scroll,
 			static_cast<ImS64>(textColumnWidth),
 			static_cast<ImS64>(maxColumnsWidth),
-			ImDrawFlags_RoundCornersAll)) {
+			ImDrawFlags_RoundAll)) {
 
 			textScroll = static_cast<float>(scroll);
 		}
@@ -706,7 +711,7 @@ void TextDiff::SideBySideView::renderScrollbars() {
 			&scroll,
 			static_cast<ImS64>(textColumnWidth),
 			static_cast<ImS64>(maxColumnsWidth),
-			ImDrawFlags_RoundCornersAll)) {
+			ImDrawFlags_RoundAll)) {
 
 			textScroll = static_cast<float>(scroll);
 		}
@@ -718,7 +723,7 @@ void TextDiff::SideBySideView::renderScrollbars() {
 			&scroll,
 			static_cast<ImS64>(textColumnWidth),
 			static_cast<ImS64>(maxColumnsWidth),
-			ImDrawFlags_RoundCornersAll)) {
+			ImDrawFlags_RoundAll)) {
 
 			textScroll = static_cast<float>(scroll);
 		}
