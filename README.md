@@ -80,6 +80,7 @@ features are however included.
 - Folding works on brackets (for all languages) and on indentation for languages like Python.
 - Provides optional autocomplete framework (see [more information here](docs/autocomplete.md), default is off).
 - Has marker API to specify lines and/or line numbers to highlight and optional show tooltips (see [example](docs/markers.md)).
+- Has squiggle API to underline parts of the text like Visual Studio Code to highlight and optional show tooltips.
 - Has optional full minimap similar to Visual Studio Code.
 - Has optional scrollbar minimap to just render current cursor, selections and marker locations.
 - Provides middle-mouse pan and scroll functions like CAD programs and browsers.
@@ -101,6 +102,7 @@ features are however included.
 - Provides whitespace indicators for tabs and spaces (can be turned on and off individually or collectively).
 - Supports blinking caret(s)/cursor(s) (can be turned on/off using Dear ImGui's global io.ConfigInputTextCursorBlink flag).
 - Supports caret(s)/cursor(s) hiding through API (default is that they are visible even in readonly mode).
+- Supports custom caret rendering through a callback (see [example](docs/customCaret.md)).
 - No longer uses regular expressions for colorizing text (see below).
 - Provides an example Language Server Protocol (LSP) bridge (see [example](docs/lsp.md)).
 - Provides an optional companion widget to show differences between versions of text (see below).
@@ -176,7 +178,8 @@ See GImGui documentation in imgui.cpp for more details.
 	- Alt with single left mouse click creates a new cursor on MacOS.
 	- Ctrl with single left mouse click creates a new cursor on Linux and Windows.
 	- Ctrl-A selects all text.
-	- Ctrl-D creates a new cursor and selects the next instance of the current selection.
+	- Ctrl-D creates a new cursor for the next instance of the current cursor's text.
+	- Shift-Ctrl-D creates a new cursor for each instance of the current cursor's text.
 	- Double left mouse clicks on a curly bracket select the content of the relevant block and replaces all previous cursors.
 	- Shift + Double left mouse clicks on a curly bracket select the content of the relevant block including the brackets and replaces all previous cursors.
 	- Double left mouse clicks not on a bracket or parenthesis, select a word. Adding Shift extends current selection.
@@ -211,15 +214,15 @@ See GImGui documentation in imgui.cpp for more details.
 	- Shift-Tab de-indents current line or current lines.
 	- Alt-UpArrow moves current or all selected lines up.
 	- Alt-DownArrow moves current or all selected lines down.
-	- Ctrl-/ toggles line comments for current or selected lines if language with single line comments is specified.
+	- Ctrl-/ or Ctrl-L toggle line comments for current or selected lines if language with single line comments is specified.
 
 - Find & Replace:
-	- Ctrl-f opens the find and replace window.
-	- If text is selected when Ctrl-f is hit, the selected text is used as the search term if the start and end are on the same line. Else if the cursor is in a word when Ctrl-f is hit, that word is used as the search term.
+	- Ctrl-F opens the find and replace window.
+	- If text is selected when Ctrl-F is hit, the selected text is used as the search term if the start and end are on the same line. Else if the cursor is in a word when Ctrl-F is hit, that word is used as the search term.
 	- In all other cases, the previous search term is used.
 	- When the search and replace window is visible, hitting the ESC button closes it.
-	- Shift-Ctrl-f finds all instances and makes them separate cursors.
-	- Ctrl-g finds the next instance of the search term.
+	- Shift-Ctrl-F finds all instances and makes them separate cursors.
+	- Ctrl-G finds the next instance of the search term.
 
 - AutoComplete:
 	- Once configured, Ctrl-space (or a custom key combination) triggers a manual autocomplete (even on MacOS as Cmd-space globally triggers Spotlight searching on that platform).

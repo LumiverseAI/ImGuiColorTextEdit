@@ -59,6 +59,8 @@ private:
 	void showConfirmClose(std::function<void()> callback);
 	void showConfirmQuit();
 	void showError(const std::string& message);
+	void showAddSquiggle();
+	void showClearSquiggles();
 
 	void renderDiff();
 	void renderFileOpen();
@@ -66,6 +68,8 @@ private:
 	void renderConfirmClose();
 	void renderConfirmQuit();
 	void renderConfirmError();
+	void renderAddSquiggle();
+	void renderClearSquiggle();
 
 	void renderDebugInformation();
 
@@ -107,28 +111,37 @@ private:
 	void setLanguageByExtention(const std::string& filename);
 
 	// examples
+	void toggleNavigationMode();
 	void toggleTrieAutoComplete();
 	void toggleLspBridge();
 	void toggleShowWordAtMouse();
 	void toggleLineMarkers();
 	void toggleLineDecorator();
+	void toggleCustomCaret();
 	void toggleContextMenus();
 	void toggleLineBreak();
+	void clearSquiggles();
 
 	bool demoTrieAutoComplete = false;
 	bool demoLspBridge = false;
 	bool showWordAtMouse = false;
 	bool showLineMarkers = false;
 	bool showLineDecorator = false;
+	bool showCustomCaret = false;
 	bool showContextMenus = false;
 	bool enableUnicodeLineBreakAlgorithm = false;
 	bool showDebugInformation = false;
+	bool showDebugWindow = false;
 
 	TrieAutoComplete trieAutoComplete;
 	LspBridge lsp;
 	static constexpr int lspOptions = LspBridge::autocomplete | LspBridge::showHoverHelp;
 
 	std::function<std::string()> getBackendDebugInformation;
+
+	size_t squiggleType = 1;
+	ImColor squiggleColor{1.0f, 0.2f, 0.0f, 0.8f};
+	char squiggleToolTip[128] = {};
 
 	// notification system
 	Notifications notifications;
@@ -142,6 +155,8 @@ private:
 		saveFileAs,
 		confirmClose,
 		confirmQuit,
-		confirmError
+		confirmError,
+		addSquiggle,
+		clearSquiggles
 	} state = State::edit;
 };
