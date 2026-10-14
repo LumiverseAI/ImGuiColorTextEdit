@@ -2097,8 +2097,11 @@ void TextEditor::handlePossibleScrolling() {
 		ensureVisiblePos.line = invalidLine;
 	}
 
-	// scroll to specified line (if required)
+	// scroll to specified line (if required): glides there with smooth scrolling
+	bool glide = false;
+
 	if (scrollToLineNumber != invalidLine) {
+		glide = config.smoothScrolling;
 		const auto row = static_cast<float>(docPos2VisPos(DocPos(scrollToLineNumber, 0)).row);
 		const auto visibleRows = textSize.y / glyphSize.y;
 		scrollX = 0.0f;
@@ -2126,7 +2129,33 @@ void TextEditor::handlePossibleScrolling() {
 	}
 
 	if (scrollY >= 0.0f) {
-		ImGui::SetScrollY(scrollY);
+		if (glide) {
+			smoothScrollTargetY = scrollY;
+			smoothScrollTime = 0.0f;
+
+		} else {
+			ImGui::SetScrollY(scrollY);
+			smoothScrollTargetY = -1.0f;
+		}
+	}
+
+	// a running smooth scroll: a fast ease toward its target, which it reaches after smoothScrollDuration; the
+	// user's own scrolling stops it
+	if (smoothScrollTargetY >= 0.0f) {
+		smoothScrollTime += ImGui::GetIO().DeltaTime;
+
+		if (ImGui::IsWindowHovered() && ImGui::GetIO().MouseWheel != 0.0f) {
+			smoothScrollTargetY = -1.0f;
+
+		} else if (smoothScrollTime >= smoothScrollDuration) {
+			ImGui::SetScrollY(smoothScrollTargetY);
+			smoothScrollTargetY = -1.0f;
+
+		} else {
+			const auto current = ImGui::GetScrollY();
+			const auto step = 1.0f - std::exp(-ImGui::GetIO().DeltaTime * 18.0f);
+			ImGui::SetScrollY(current + (smoothScrollTargetY - current) * step);
+		}
 	}
 }
 

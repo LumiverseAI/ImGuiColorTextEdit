@@ -131,6 +131,8 @@ public:
 	inline bool IsCompletingPairedGlyphs() const { return config.completePairedGlyphs; }
 	inline void SetLineFoldingEnabled(bool value) { config.lineFolding = value; if (value) { config.showMatchingBrackets = true; } }
 	inline bool IsLineFoldingEnabled() const { return config.lineFolding; }
+	inline void SetSmoothScrollingEnabled(bool value) { config.smoothScrolling = value; } // ScrollToLine() glides there
+	inline bool IsSmoothScrollingEnabled() const { return config.smoothScrolling; }
 	inline void SetOverwriteEnabled(bool value) { config.overwrite = value; }
 	inline bool IsOverwriteEnabled() const { return config.overwrite; }
 	inline void SetMiddleMousePanMode() { config.panMode = true; }
@@ -1005,6 +1007,7 @@ protected:
 		bool showMatchingBrackets = true;
 		bool completePairedGlyphs = true;
 		bool lineFolding = false;
+		bool smoothScrolling = false;
 		bool overwrite = false;
 		bool panMode = true;
 		bool showPanScrollIndicator = true;
@@ -2063,6 +2066,9 @@ protected:
 	Scroll scrollToAlignment = Scroll::alignMiddle;
 	float scrollToFraction = 0.0f;
 	DocPos ensureVisiblePos{invalidLine, 0};
+	float smoothScrollTargetY = -1.0f; // a running smooth scroll: its target (negative: none), and its time so far
+	float smoothScrollTime = 0.0f;
+	static constexpr float smoothScrollDuration = 0.3f;
 	bool resetDearImGuiScrolling = false;
 
 	size_t decoratorWidth = 0;
