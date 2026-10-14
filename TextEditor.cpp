@@ -96,8 +96,9 @@ bool TextEditor::render(const char* title, const ImVec2& size, ImGuiChildFlags c
 			lineNumberRightOffset = lineNumberLeftOffset + digits * glyphSize.x;
 
 		} else {
-			lineNumberLeftOffset = 0.0f;
-			lineNumberRightOffset = 0.0f;
+			// the fold indicators keep the left margin: centered on the window's edge, they would be cut in half
+			lineNumberLeftOffset = config.lineFolding ? config.leftMargin * glyphSize.x : 0.0f;
+			lineNumberRightOffset = lineNumberLeftOffset;
 		}
 
 		if (config.lineFolding) {
