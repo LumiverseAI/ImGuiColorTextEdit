@@ -63,7 +63,16 @@ The example application used the following third party open source packages
 
 * [SDL3](https://github.com/libsdl-org/SDL) - cross-platform library designed to make it easy to write multi-media software released under the [zlib license](https://opensource.org/licenses/Zlib).
 * [Dear ImGui](https://github.com/ocornut/imgui) - graphical user interface library released under the [MIT license](https://opensource.org/licenses/MIT).
-* [ImGuiFileDialog](https://github.com/aiekick/ImGuiFileDialog) - file selection dialog for Dear ImGui released under the [MIT license](https://opensource.org/licenses/MIT).
+* [ImGui File Selector](https://github.com/goossens/ImGuiFileSelector) - library providing a file selector dialog for Dear ImGui with MacOS layout and Dear ImGui look and feel released under the [MIT license](https://opensource.org/licenses/MIT).
+* [ImGui Toastr](https://github.com/goossens/ImGuiToastr) - library to show toast-like notifications for Dear ImGui released under the [MIT license](https://opensource.org/licenses/MIT).
 * [dtl](https://github.com/cubicdaiya/dtl) - a difference template library by [Tatsuhiko Kubo (cubicdaiya)](https://github.com/cubicdaiya) released under the [BSD License](https://opensource.org/license/bsd-3-clause).
 * [LSP Framework](https://github.com/leon-bckl/lsp-framework) - a framework to implement
 [Language Server Protocol (LSP)](https://microsoft.github.io/language-server-protocol/overviews/lsp/overview/) servers and clients by [ Leon Buckel](https://github.com/leon-bckl) released under the [MIT license](https://opensource.org/licenses/MIT).
+
+The example application also uses the following fonts:
+
+* [DejaVu Font](https://en.wikipedia.org/wiki/DejaVu_fonts) is extracted from
+[here](https://github.com/dejavu-fonts/dejavu-fonts) and it was released under a
+[generous license](https://github.com/dejavu-fonts/dejavu-fonts/blob/master/LICENSE).
+
+* [NotoSansSC](https://github.com/jsntn/webfonts/blob/master/NotoSansSC-Regular.ttf) is a released under the [Open Font License version 1.1](https://openfontlicense.org/open-font-license-official-text/).

@@ -12,6 +12,5 @@
 //	Static variables
 //
 
-
 extern const unsigned int dejavu[258552 / 4];
 static constexpr int dejavuSize = 258552;

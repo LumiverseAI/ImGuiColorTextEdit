@@ -1,4 +1,4 @@
-//	TextEditor - A syntax highlighting text editor for ImGui
+//	TextEditor - A syntax highlighting text editor for Dear ImGui.
 //	Copyright (c) 2024-2026 Johan A. Goossens. All rights reserved.
 //
 //	This work is licensed under the terms of the MIT license.
@@ -150,7 +150,7 @@ void LspBridge::messageLoop() {
 //	LspBridge::o
 //
 
-void LspBridge::OpenDocument(const std::string& path, TextEditor& editor, int options) {
+void LspBridge::OpenDocument(const std::filesystem::path& path, TextEditor& editor, int options) {
 	if (IsRunning()) {
 		if (documents.find(path) != documents.end()) {
 			documents.erase(path);
@@ -165,7 +165,7 @@ void LspBridge::OpenDocument(const std::string& path, TextEditor& editor, int op
 //	LspBridge::CloseDocument
 //
 
-void LspBridge::CloseDocument(const std::string& path) {
+void LspBridge::CloseDocument(const std::filesystem::path& path) {
 	if (IsRunning()) {
 		if (documents.find(path) != documents.end()) {
 			documents.erase(path);
@@ -178,7 +178,7 @@ void LspBridge::CloseDocument(const std::string& path) {
 //	LspBridge::IsOpen
 //
 
-bool LspBridge::IsOpen(const std::string& path) {
+bool LspBridge::IsOpen(const std::filesystem::path& path) {
 	return documents.find(path) != documents.end();
 }
 
@@ -187,8 +187,8 @@ bool LspBridge::IsOpen(const std::string& path) {
 //	LspBridge::update
 //
 
-void LspBridge::Update(const std::string& path) {
-	auto i = documents.find(path);
+void LspBridge::Update(const std::filesystem::path& path) {
+	const auto i = documents.find(path);
 
 	if (i != documents.end()) {
 		i->second.update();
@@ -200,7 +200,7 @@ void LspBridge::Update(const std::string& path) {
 //	LspBridge::Document::Document
 //
 
-LspBridge::Document::Document(LspBridge& bridge, const std::string& path, TextEditor& editor, int options)
+LspBridge::Document::Document(LspBridge& bridge, const std::filesystem::path& path, TextEditor& editor, int options)
 	: bridge(bridge), path(path), editor(editor), options(options) {
 
 	// sanitize options (can't hover and signature at the same time)
@@ -211,7 +211,7 @@ LspBridge::Document::Document(LspBridge& bridge, const std::string& path, TextEd
 	// open document in language server
 	bridge.messageHandler->sendNotification<lsp::notifications::TextDocument_DidOpen>({
 		.textDocument = {
-			.uri = lsp::DocumentUri::fromPath(path),
+			.uri = lsp::DocumentUri::fromPath(path.string()),
 			.languageId = editor.GetLanguageName(),
 			.version = version++,
 			.text = editor.GetText()
@@ -226,7 +226,7 @@ LspBridge::Document::Document(LspBridge& bridge, const std::string& path, TextEd
 	}));
 
 	lsp::DidChangeTextDocumentParams params;
-	params.textDocument.uri = lsp::DocumentUri::fromPath(path);
+	params.textDocument.uri = lsp::DocumentUri::fromPath(path.string());
 	params.textDocument.version = version++;
 	params.contentChanges = std::move(contentChanges);
 	bridge.messageHandler->sendNotification<lsp::notifications::TextDocument_DidChange>(std::move(params));
@@ -269,7 +269,7 @@ LspBridge::Document::Document(LspBridge& bridge, const std::string& path, TextEd
 		}
 
 		lsp::DidChangeTextDocumentParams params;
-		params.textDocument.uri = lsp::DocumentUri::fromPath(path);
+		params.textDocument.uri = lsp::DocumentUri::fromPath(path.string());
 		params.textDocument.version = version++;
 		params.contentChanges = std::move(contentChanges);
 		bridge.messageHandler->sendNotification<lsp::notifications::TextDocument_DidChange>(std::move(params));
@@ -283,7 +283,7 @@ LspBridge::Document::Document(LspBridge& bridge, const std::string& path, TextEd
 				{
 					{
 						.textDocument = {
-							.uri = lsp::DocumentUri::fromPath(path)
+							.uri = lsp::DocumentUri::fromPath(path.string())
 						},
 						.position = lsp::Position {
 							.line = static_cast<lsp::uint>(state.searchTermEnd.line),
@@ -294,7 +294,7 @@ LspBridge::Document::Document(LspBridge& bridge, const std::string& path, TextEd
 				[&](const lsp::requests::TextDocument_Completion::Result& result) {
 					// if (result.holdsAlternative<lsp::CompletionList>()) {
 					if (!result.isNull()) {
-						std::scoped_lock lock(mutex);
+						const std::scoped_lock lock(mutex);
 						suggestions.clear();
 						auto list = result.get<lsp::CompletionList>();
 
@@ -325,7 +325,7 @@ LspBridge::Document::~Document() {
 	// close document in language server
 	bridge.messageHandler->sendNotification<lsp::notifications::TextDocument_DidClose>({
 		.textDocument = {
-			.uri = lsp::DocumentUri::fromPath(path)
+			.uri = lsp::DocumentUri::fromPath(path.string())
 		}
 	});
 
@@ -351,7 +351,7 @@ LspBridge::Document::~Document() {
 void LspBridge::Document::update() {
 	// see if we are hovering over text
 	if (editor.IsMousePosOverGlyph(ImGui::GetMousePos())) {
-		auto docPos = editor.GetDocPosAtMousePos(ImGui::GetMousePos());
+		const auto docPos = editor.GetDocPosAtMousePos(ImGui::GetMousePos());
 
 		if (docPos != mouseDocPos) {
 			mouseDocPos = docPos;
@@ -361,7 +361,7 @@ void LspBridge::Document::update() {
 					{
 						{
 							.textDocument = {
-								.uri = lsp::DocumentUri::fromPath(path)
+								.uri = lsp::DocumentUri::fromPath(path.string())
 							},
 							.position = lsp::Position {
 								.line = static_cast<lsp::uint>(docPos.line),
@@ -387,7 +387,7 @@ void LspBridge::Document::update() {
 					{
 						{
 							.textDocument = {
-								.uri = lsp::DocumentUri::fromPath(path)
+								.uri = lsp::DocumentUri::fromPath(path.string())
 							},
 							.position = lsp::Position {
 								.line = static_cast<lsp::uint>(docPos.line),
@@ -397,10 +397,10 @@ void LspBridge::Document::update() {
 					},
 					[this](const lsp::requests::TextDocument_Hover::Result& result) {
 						if (!result.isNull()) {
-							std::scoped_lock lock(mutex);
+							const std::scoped_lock lock(mutex);
 
 							if (std::holds_alternative<lsp::MarkupContent>(result->contents)) {
-								auto message = std::get<lsp::MarkupContent>(result->contents);
+								const auto message = std::get<lsp::MarkupContent>(result->contents);
 								hoverMessage = message.value;
 
 							} else {
@@ -420,14 +420,14 @@ void LspBridge::Document::update() {
 
 	// submit suggestions asynchronously (if required)
 	if ((options & autocomplete) && suggestions.size()) {
-		std::scoped_lock lock(mutex);
+		const std::scoped_lock lock(mutex);
 		editor.SetAutoCompleteSuggestions(suggestions);
 		suggestions.clear();
 	}
 
 	// setup hover help (if required)
 	if (options & showHoverHelp) {
-		std::scoped_lock lock(mutex);
+		const std::scoped_lock lock(mutex);
 
 		if (hoverMessage.size() && editor.IsMousePosOverGlyph(ImGui::GetMousePos())) {
 			editor.SetTextHoverCallback([&](TextEditor::PopupData) {
@@ -441,11 +441,11 @@ void LspBridge::Document::update() {
 
 	// setup signatures (if required)
 	if (options & showSignature) {
-		std::scoped_lock lock(mutex);
+		const std::scoped_lock lock(mutex);
 
 		if (signatures.size() && editor.IsMousePosOverGlyph(ImGui::GetMousePos())) {
 			editor.SetTextHoverCallback([&](TextEditor::PopupData) {
-				for (auto& signature : signatures) {
+				for (const auto& signature : signatures) {
 					ImGui::TextDisabled("%s", signature.c_str());
 				}
 			});

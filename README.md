@@ -73,14 +73,14 @@ features are however included.
 - Has extendable syntax highlighting for multiple languages and API for custom languages.
 - Has customizable color palettes (a dark and light version that work with Dear ImGui defaults are included).
 - Has option to automatically insert spaces on tabs.
-- Has find/replace user interface and API with full undo/redo.
+- Has find/replace user interface and API with full undo/redo (the user interface can be disabled when the application provides its own search).
 - Find has options for whole word and/or case-sensitive searches.
 - Has support for configurable word wrap (see [description](docs/wordwrap.md), default is off).
 - Supports optional line folding like Visual Studio Code (default is off).
 - Folding works on brackets (for all languages) and on indentation for languages like Python.
 - Provides optional autocomplete framework (see [more information here](docs/autocomplete.md), default is off).
 - Has marker API to specify lines and/or line numbers to highlight and optional show tooltips (see [example](docs/markers.md)).
-- Has squiggle API to underline parts of the text like Visual Studio Code to highlight and optional show tooltips.
+- Has squiggle API to underline or highlight parts of the text like Visual Studio Code and optional show tooltips (see [example](docs/squiggles.md)).
 - Has optional full minimap similar to Visual Studio Code.
 - Has optional scrollbar minimap to just render current cursor, selections and marker locations.
 - Provides middle-mouse pan and scroll functions like CAD programs and browsers.
@@ -93,6 +93,7 @@ features are however included.
 - If auto complete is turned on, selections can be surrounded by paired glyphs.
 - Supports bracket matching and coloring similar to Visual Studio Code (can be turned on and off).
 - Supports multiple cursors and multiple selections.
+- Optionally highlight the line(s) currently under the cursor(s).
 - Provides auto indent with simplified implementation (can be turned on and off).
 - Has API to filter selections (with full undo support).
 - Uppercase/lowercase filter is example of selection filtering.
@@ -103,6 +104,7 @@ features are however included.
 - Supports blinking caret(s)/cursor(s) (can be turned on/off using Dear ImGui's global io.ConfigInputTextCursorBlink flag).
 - Supports caret(s)/cursor(s) hiding through API (default is that they are visible even in readonly mode).
 - Supports custom caret rendering through a callback (see [example](docs/customCaret.md)).
+- Supports custom line number rendering through a callback (see [example](docs/customLineNumbers.md)).
 - No longer uses regular expressions for colorizing text (see below).
 - Provides an example Language Server Protocol (LSP) bridge (see [example](docs/lsp.md)).
 - Provides an optional companion widget to show differences between versions of text (see below).
@@ -179,7 +181,10 @@ See GImGui documentation in imgui.cpp for more details.
 	- Ctrl with single left mouse click creates a new cursor on Linux and Windows.
 	- Ctrl-A selects all text.
 	- Ctrl-D creates a new cursor for the next instance of the current cursor's text.
+	- Ctrl-Alt-D creates a new cursor for the next full word instance of the current cursor's text.
+	- Ctrl-Alt-L also creates a new cursor for the next full word instance of the current cursor's text (for MacOS users as Ctrl-Alt-D toggles dock visibility).
 	- Shift-Ctrl-D creates a new cursor for each instance of the current cursor's text.
+	- Shift-Ctrl-Alt-D creates a new cursor for each full word instance of the current cursor's text.
 	- Double left mouse clicks on a curly bracket select the content of the relevant block and replaces all previous cursors.
 	- Shift + Double left mouse clicks on a curly bracket select the content of the relevant block including the brackets and replaces all previous cursors.
 	- Double left mouse clicks not on a bracket or parenthesis, select a word. Adding Shift extends current selection.
@@ -223,6 +228,7 @@ See GImGui documentation in imgui.cpp for more details.
 	- When the search and replace window is visible, hitting the ESC button closes it.
 	- Shift-Ctrl-F finds all instances and makes them separate cursors.
 	- Ctrl-G finds the next instance of the search term.
+	- When the find and replace window is disabled (see SetFindReplaceEnabled), these shortcuts are left to the application.
 
 - AutoComplete:
 	- Once configured, Ctrl-space (or a custom key combination) triggers a manual autocomplete (even on MacOS as Cmd-space globally triggers Spotlight searching on that platform).
@@ -303,12 +309,22 @@ Below are two screenshots of its use in both modes. Have a look at the code in t
 ## Extras
 
 This repository contains some optional companion classes for a simple autocomplete
-feature, a bridge to language servers and on-screen notifications. Details on simple
-autocomplete can be found [here](docs/autocomplete.md) and details on the language
-server bridge are [here](docs/lsp.md). Details of the "toast" notification system
-are [here](extras/Notifications.h). The source code for these components are in the
+feature and a bridge to language servers. Details on simple autocomplete can be found
+[here](docs/autocomplete.md) and details on the language server bridge are
+[here](docs/lsp.md). The source code for these components are in the
 [extras folder](extras/) and the [example application](example/) shows how
 to use them.
+
+The [example application](example/) also uses two additional widgets by the same author:
+
+- [ImGuiToastr](https://github.com/goossens/ImGuiToastr) provides Toast-like Notification
+System for Dear ImGui based on the popular
+[Toastr extension](https://github.com/CodeSeven/toastr) for JavaScript from years ago.
+Notifications are rendered as a stack from a specified anchor and direction and they
+disappear automatically after a specified amount of time.
+- [ImGuiFileSelector](https://github.com/goossens/ImGuiFileSelector) provides a
+simple File Selector for Dear ImGui with a MacOS pedigree/layout and a
+Dear ImGui look and feel.
 
 ## External Examples
 
@@ -344,7 +360,7 @@ are available. If you find any problems or want to make a suggestion for improve
 This version of ImGuiColorTextEdit was written from scratch by [Johan A. Goossens](https://github.com/goossens)
 and if you end up using (parts of) this repository a shoutout or Github star would be appreciated.
 
-Thank you to [Omar Cornut](https://github.com/ocornut/imgui) for creating Dear ImGui
+A big thank you to [Omar Cornut](https://github.com/ocornut/imgui) for creating Dear ImGui
 in the first place. Without you, this editor would not exist.
 
 I owe a great deal of gratitude to [Balázs Jákó](https://github.com/BalazsJako/ImGuiColorTextEdit)
