@@ -13,13 +13,15 @@
 //
 
 #include <algorithm>
+#include <filesystem>
 #include <functional>
 #include <string>
+
+#include "imgui.h"
 
 #include "../TextEditor.h"
 #include "../TextDiff.h"
 #include "../extras/LspBridge.h"
-#include "../extras/Notifications.h"
 #include "../extras/TrieAutoComplete.h"
 
 
@@ -35,7 +37,7 @@ public:
 	// file related functions
 	void newFile();
 	void openFile();
-	void openFile(const std::string& path);
+	void openFile(const std::filesystem::path& path);
 	void saveFile();
 
 	// manage program exit
@@ -80,7 +82,7 @@ private:
 	std::string originalText;
 	TextEditor editor;
 	TextDiff diff;
-	std::string filename;
+	std::filesystem::path filename;
 	size_t version;
 	bool done = false;
 	bool popup = true;
@@ -108,26 +110,57 @@ private:
 
 	void setLanguage(const TextEditor::Language* language);
 	void setLanguageByName(const std::string& name);
-	void setLanguageByExtention(const std::string& filename);
+	void setLanguageByExtention(const std::filesystem::path& path);
 
 	// examples
 	void toggleNavigationMode();
 	void toggleTrieAutoComplete();
 	void toggleLspBridge();
 	void toggleShowWordAtMouse();
+	void toggleShowDocPosAtMouse();
 	void toggleLineMarkers();
 	void toggleLineDecorator();
 	void toggleCustomCaret();
+	void toggleCustomLineNumbers();
 	void toggleContextMenus();
 	void toggleLineBreak();
 	void clearSquiggles();
 
+	void insertSimplifiedChinese();
+
+	void loadWString();
+
+#if (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L) || (__cplusplus >= 202002L)
+	void loadU8String();
+#endif
+
+	void loadU16String();
+
+#ifdef IMGUI_USE_WCHAR32
+	void loadU32String();
+#endif
+
+	void loadVectorOfStrings();
+	void loadVectorOfWStrings();
+
+#if (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L) || (__cplusplus >= 202002L)
+	void loadVectorOfU8Strings();
+#endif
+
+	void loadVectorOfU16Strings();
+
+#ifdef IMGUI_USE_WCHAR32
+	void loadVectorOfU32Strings();
+#endif
+
 	bool demoTrieAutoComplete = false;
 	bool demoLspBridge = false;
 	bool showWordAtMouse = false;
+	bool showDocPosAtMouse = false;
 	bool showLineMarkers = false;
 	bool showLineDecorator = false;
 	bool showCustomCaret = false;
+	bool showCustomLineNumbers = false;
 	bool showContextMenus = false;
 	bool enableUnicodeLineBreakAlgorithm = false;
 	bool showDebugInformation = false;
@@ -142,9 +175,7 @@ private:
 	size_t squiggleType = 1;
 	ImColor squiggleColor{1.0f, 0.2f, 0.0f, 0.8f};
 	char squiggleToolTip[128] = {};
-
-	// notification system
-	Notifications notifications;
+	TextEditor::SquiggleStyle squiggleStyle = TextEditor::SquiggleStyle::wave;
 
 	// editor state
 	enum class State {

@@ -9,9 +9,10 @@
 //	Include files
 //
 
-#include <cstdio>
 #include <exception>
+#include <iostream>
 #include <filesystem>
+#include <functional>
 #include <format>
 #include <fstream>
 
@@ -32,7 +33,10 @@
 #endif
 
 #include "imgui.h"
-#include "ImGuiFileDialog.h"
+#include "imgui_internal.h"
+
+#include "FileSelector.h"
+#include "Toastr.h"
 
 #include "editor.h"
 
@@ -47,29 +51,29 @@
 #define SHORTCUT "Ctrl-"
 #endif
 
-static const char* demo =
-"// Demo C++ Code\n"
-"\n"
-"#include <iostream>\n"
-"#include <random>\n"
-"#include <vector>\n"
-"\n"
-"int main(int, char**) {\n"
-"	std::random_device rd;\n"
-"	std::mt19937 gen(rd());\n"
-"	std::uniform_int_distribution<> distrib(0, 1000);\n"
-"	std::vector<int> numbers;\n"
-"\n"
-"	for (auto i = 0; i < 100; i++) {\n"
-"		numbers.emplace_back(distrib(gen));\n"
-"	}\n"
-"\n"
-"	for (auto n : numbers) {\n"
-"		std::cout << n << std::endl;\n"
-"	}\n"
-"\n"
-"	return 0;\n"
-"}\n";
+static const char* demo = R"(// Demo C++ Code
+
+#include <iostream>
+#include <random>
+#include <vector>
+
+int main(int, char**) {
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_int_distribution<> distrib(0, 1000);
+	std::vector<int> numbers;
+
+	for (auto i = 0; i < 100; i++) {
+		numbers.emplace_back(distrib(gen));
+	}
+
+	for (auto n : numbers) {
+		std::cout << n << std::endl;
+	}
+
+	return 0;
+}
+)";
 
 
 //
@@ -189,7 +193,7 @@ void Editor::openFile() {
 	}
 }
 
-void Editor::openFile(const std::string& path) {
+void Editor::openFile(const std::filesystem::path& path) {
 	try {
 		if (lsp.IsRunning()) {
 			lsp.CloseDocument(filename);
@@ -241,8 +245,13 @@ void Editor::saveFile() {
 //
 
 void Editor::render() {
+	// support language server bridge
+	if (lsp.IsRunning()) {
+		lsp.Update(filename);
+	}
+
 	// create the outer window
-	ImGuiWindowFlags windowFlags =
+	const ImGuiWindowFlags windowFlags =
 		ImGuiWindowFlags_NoDecoration |
 		ImGuiWindowFlags_MenuBar |
 		ImGuiWindowFlags_NoBringToFrontOnFocus;
@@ -255,16 +264,13 @@ void Editor::render() {
 	// add a menubar
 	renderMenuBar();
 
-	// support language server bridge
-	if (lsp.IsRunning()) {
-		lsp.Update(filename);
-	}
+	// determine text editor size
+	const auto area = ImGui::GetContentRegionAvail();
+	const auto& style = ImGui::GetStyle();
+	const auto statusBarHeight = ImGui::GetFrameHeight() + 2.0f * style.WindowPadding.y;
+	const auto editorSize = ImVec2(0.0f, area.y - style.ItemSpacing.y - statusBarHeight);
 
 	// render the text editor widget
-	auto area = ImGui::GetContentRegionAvail();
-	auto& style = ImGui::GetStyle();
-	auto statusBarHeight = ImGui::GetFrameHeight() + 2.0f * style.WindowPadding.y;
-	auto editorSize = ImVec2(0.0f, area.y - style.ItemSpacing.y - statusBarHeight);
 	ImGui::PushFont(nullptr, fontSize);
 	editor.Render("Text Editor", editorSize);
 	ImGui::PopFont();
@@ -307,13 +313,17 @@ void Editor::render() {
 	}
 
 	// render notifications
-	auto mainWindowSize = ImGui::GetMainViewport()->Size;
-	auto mainWindowPos = ImGui::GetMainViewport()->Pos;
-	float offset = statusBarHeight + style.ItemSpacing.y * 2.0f;
+	const auto mainWindowSize = ImGui::GetMainViewport()->Size;
+	const auto mainWindowPos = ImGui::GetMainViewport()->Pos;
+	const float offset = statusBarHeight + style.ItemSpacing.y * 2.0f;
 
-	notifications.Render(ImVec2(
-		mainWindowPos.x + mainWindowSize.x - ImGui::GetStyle().ItemSpacing.x,
-		mainWindowPos.y + mainWindowSize.y - ImGui::GetStyle().ItemSpacing.y - offset));
+	Toastr::Instance().SetTextWidth(30);
+
+	Toastr::Instance().Render(
+		ImVec2(
+			mainWindowPos.x + mainWindowSize.x - ImGui::GetStyle().ItemSpacing.x,
+			mainWindowPos.y + mainWindowSize.y - ImGui::GetStyle().ItemSpacing.y - offset),
+		Toastr::AnchorType::bottomRight);
 
 	// show Dear ImGui metrics (if required)
 	if (showDebugWindow) {
@@ -413,7 +423,7 @@ void Editor::renderMenuBar() {
 			ImGui::EndMenu();
 		}
 
-		if (ImGui::BeginMenu("Find")) {
+		if (ImGui::BeginMenu("Find", editor.IsFindReplaceEnabled())) {
 			if (ImGui::MenuItem("Find", " " SHORTCUT "F")) { editor.OpenFindReplaceWindow(); }
 			if (ImGui::MenuItem("Find Next", " " SHORTCUT "G", nullptr, editor.HasFindString())) { editor.FindNext(); }
 			if (ImGui::MenuItem("Find All", "^" SHORTCUT "G", nullptr, editor.HasFindString())) { editor.FindAll(); }
@@ -458,16 +468,20 @@ void Editor::renderMenuBar() {
 			flag = editor.IsOverwriteEnabled(); if (ImGui::MenuItem("Overwrite", nullptr, &flag)) { editor.SetOverwriteEnabled(flag); };
 			flag = editor.IsWordWrapEnabled(); if (ImGui::MenuItem("Word Wrap", nullptr, &flag)) { editor.SetWordWrapEnabled(flag); };
 			flag = editor.IsLineFoldingEnabled(); if (ImGui::MenuItem("Line Folding", nullptr, &flag)) { editor.SetLineFoldingEnabled(flag); };
+			flag = editor.IsAutoIndentEnabled(); if (ImGui::MenuItem("Auto Indent", nullptr, &flag)) { editor.SetAutoIndentEnabled(flag); };
+			flag = editor.IsInsertSpacesOnTabs(); if (ImGui::MenuItem("Insert Spaces on Tabs", nullptr, &flag)) { editor.SetInsertSpacesOnTabs(flag); };
 			flag = editor.IsShowWhitespacesEnabled(); if (ImGui::MenuItem("Show Whitespaces", nullptr, &flag)) { editor.SetShowWhitespacesEnabled(flag); };
 			flag = editor.IsShowSpacesEnabled(); if (ImGui::MenuItem("Show Spaces", nullptr, &flag)) { editor.SetShowSpacesEnabled(flag); };
 			flag = editor.IsShowTabsEnabled(); if (ImGui::MenuItem("Show Tabs", nullptr, &flag)) { editor.SetShowTabsEnabled(flag); };
 			flag = editor.IsShowLineNumbersEnabled(); if (ImGui::MenuItem("Show Line Numbers", nullptr, &flag)) { editor.SetShowLineNumbersEnabled(flag); };
+			flag = editor.IsShowCurrentLineHighlightEnabled(); if (ImGui::MenuItem("Show Current Line Highlight", nullptr, &flag)) { editor.SetShowCurrentLineHighlightEnabled(flag); };
 			flag = editor.IsShowingMatchingBrackets(); if (ImGui::MenuItem("Show Matching Brackets", nullptr, &flag)) { editor.SetShowMatchingBrackets(flag); };
 			flag = editor.IsCompletingPairedGlyphs(); if (ImGui::MenuItem("Complete Matching Glyphs", nullptr, &flag)) { editor.SetCompletePairedGlyphs(flag); };
 			flag = editor.IsShowMiniMapEnabled(); if (ImGui::MenuItem("Show Mini Map", nullptr, &flag)) { editor.SetShowMiniMapEnabled(flag); };
 			flag = editor.IsShowScrollbarMiniMapEnabled(); if (ImGui::MenuItem("Show Scrollbar Mini Map", nullptr, &flag)) { editor.SetShowScrollbarMiniMapEnabled(flag); };
 			flag = editor.IsShowPanScrollIndicatorEnabled(); if (ImGui::MenuItem("Show Pan/Scroll Indicator", nullptr, &flag)) { editor.SetShowPanScrollIndicatorEnabled(flag); };
 			flag = editor.IsMiddleMousePanMode(); if (ImGui::MenuItem("Middle Mouse Pan Mode", nullptr, &flag)) { if (flag) editor.SetMiddleMousePanMode(); else editor.SetMiddleMouseScrollMode(); };
+			flag = editor.IsFindReplaceEnabled(); if (ImGui::MenuItem("Find/Replace Enabled", nullptr, &flag)) { editor.SetFindReplaceEnabled(flag); };
 
 			ImGui::Separator();
 
@@ -496,15 +510,45 @@ void Editor::renderMenuBar() {
 			if (ImGui::MenuItem("Trie-based AutoComplete", nullptr, &demoTrieAutoComplete)) { toggleTrieAutoComplete(); }
 			if (ImGui::MenuItem("Language Server Protocol Bridge", nullptr, &demoLspBridge)) { toggleLspBridge(); }
 			if (ImGui::MenuItem("Show Word at Mouse", nullptr, &showWordAtMouse)) { toggleShowWordAtMouse(); }
+			if (ImGui::MenuItem("Show DocPos at Mouse", nullptr, &showDocPosAtMouse)) { toggleShowDocPosAtMouse(); }
 			if (ImGui::MenuItem("Show Line Markers", nullptr, &showLineMarkers)) { toggleLineMarkers(); }
 			if (ImGui::MenuItem("Show Line Decorator", nullptr, &showLineDecorator)) { toggleLineDecorator(); }
 			if (ImGui::MenuItem("Show Custom Caret", nullptr, &showCustomCaret)) { toggleCustomCaret(); }
+			if (ImGui::MenuItem("Show Custom Line Numbers", nullptr, &showCustomLineNumbers)) { toggleCustomLineNumbers(); }
 			if (ImGui::MenuItem("Show Context Menus", nullptr, &showContextMenus)) { toggleContextMenus(); }
 			if (ImGui::MenuItem("Enable Unicode Line Break Algorithm", nullptr, &enableUnicodeLineBreakAlgorithm)) { toggleLineBreak(); }
 			ImGui::Separator();
 			if (ImGui::MenuItem("Add Squiggle(s)", nullptr, nullptr, editor.AnyCursorHasSelection())) { showAddSquiggle(); }
 			if (ImGui::MenuItem("Clear Squiggles", nullptr, nullptr, editor.HasSquiggles())) { clearSquiggles(); }
 			if (ImGui::MenuItem("Clear Squiggles by Type", nullptr, nullptr, editor.HasSquiggles())) { showClearSquiggles(); }
+			ImGui::Separator();
+			if (ImGui::MenuItem("Insert Simplified Chinese")) { insertSimplifiedChinese(); }
+
+			if (ImGui::MenuItem("Load from std::wstring_view", nullptr, nullptr, !isSavable())) { loadWString(); }
+
+#if (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L) || (__cplusplus >= 202002L)
+			if (ImGui::MenuItem("Load from std::u8string_view", nullptr, nullptr, !isSavable())) { loadU8String(); }
+#endif
+
+			if (ImGui::MenuItem("Load from std::16string_view", nullptr, nullptr, !isSavable())) { loadU16String(); }
+
+#ifdef IMGUI_USE_WCHAR32
+			if (ImGui::MenuItem("Load from std::32string_view", nullptr, nullptr, !isSavable())) { loadU32String(); }
+#endif
+
+			if (ImGui::MenuItem("Load from std::vector<std::string_view>", nullptr, nullptr, !isSavable())) { loadVectorOfStrings(); }
+			if (ImGui::MenuItem("Load from std::vector<std::wstring_view>", nullptr, nullptr, !isSavable())) { loadVectorOfWStrings(); }
+
+#if (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L) || (__cplusplus >= 202002L)
+			if (ImGui::MenuItem("Load from std::vector<std::u8string_view>", nullptr, nullptr, !isSavable())) { loadVectorOfU8Strings(); }
+#endif
+
+			if (ImGui::MenuItem("Load from std::vector<std::u16string_view>", nullptr, nullptr, !isSavable())) { loadVectorOfU16Strings(); }
+
+#ifdef IMGUI_USE_WCHAR32
+			if (ImGui::MenuItem("Load from std::vector<std::u32string_view>", nullptr, nullptr, !isSavable())) { loadVectorOfU32Strings(); }
+#endif
+
 			ImGui::Separator();
 			bool navigationMode = ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_NavEnableKeyboard;
 			if (ImGui::MenuItem("Keyboard/Gamepad Navigation Mode", " " SHORTCUT "Alt-N", &navigationMode)) { toggleNavigationMode(); }
@@ -560,58 +604,70 @@ void Editor::renderStatusBar() {
 		ImGui::EndCombo();
 	}
 
+	// support show docpos at mouse
+	std::string docPosStatus;
+
+	if (showDocPosAtMouse) {
+		const auto mousePos = ImGui::GetMousePos();
+
+		if (editor.IsMousePosOverTextArea(mousePos)) {
+			if (editor.IsMousePosOverGlyph(mousePos) || ImGui::IsKeyDown(ImGuiMod_Shift)) {
+				auto docPos = editor.GetDocPosAtMousePos(mousePos);
+
+				docPosStatus = std::format(
+					"MousePos: {}, {}. DocPos: {}, {}  ",
+					mousePos.x,
+					mousePos.x,
+					docPos.line,
+					docPos.index);
+			}
+		}
+	}
+
 	// support show word at mouse
-	char word[32];
+	std::string wordStatus;
 
 	if (showWordAtMouse) {
-		auto wordAtMousePos = editor.GetWordAtMousePos(ImGui::GetMousePos());
+		auto word = editor.GetWordAtMousePos(ImGui::GetMousePos());
 
-		if (wordAtMousePos.size()) {
-			std::snprintf(word, sizeof(word), "Word: %s ", wordAtMousePos.c_str());
-
-		} else {
-			word[0] = 0;
+		if (word.size()) {
+			wordStatus = std::format("Word: {}  ", word);
 		}
-
-	} else {
-		word[0] = 0;
 	}
 
 	// determine status message
 	auto tabSize = editor.GetTabSize();
 	auto cursorPos = editor.DocPos2VisPos(editor.GetCurrentCursorPosition());
 	auto fn = std::filesystem::path(filename).filename().string();
-	char status[256];
 
-	std::snprintf(
-		status,
-		sizeof(status),
-		"%sLn %zu, Col %zu  Tab Size: %zu  File: %s",
-		word,
+	auto status = std::format(
+		"{}{}Ln {}, Col {}  Tab Size: {}  File: {}",
+		docPosStatus,
+		wordStatus,
 		cursorPos.row + 1,
 		cursorPos.column + 1,
 		tabSize,
-		fn.c_str()
+		fn
 	);
 
 	// determine horizontal gap so the rest is right aligned
 	ImGui::SameLine(0.0f, 0.0f);
 	auto availableSpace = ImGui::GetContentRegionAvail().x;
-	auto messageWidth = ImGui::CalcTextSize(status).x;
+	auto messageWidth = ImGui::CalcTextSize(status.c_str()).x;
 	auto dirtyWidth = ImGui::CalcTextSize("#").x * 3.0f;
 	ImGui::SameLine(0.0f, availableSpace - messageWidth - dirtyWidth);
 
 	// render status text
 	ImGui::AlignTextToFramePadding();
-	ImGui::TextUnformatted(status);
+	ImGui::TextUnformatted(status.c_str());
 
 	// render "text dirty" indicator
 	ImGui::SameLine(0.0f, ImGui::CalcTextSize("#").x * 1.0f);
 	auto drawlist = ImGui::GetWindowDrawList();
-	auto pos = ImGui::GetCursorScreenPos();
-	auto offset = ImGui::GetFrameHeight() * 0.5f;
-	auto radius = offset * 0.6f;
-	auto color = isDirty() ? IM_COL32(164, 0, 0, 255) : IM_COL32(164, 164, 164, 255);
+	const auto pos = ImGui::GetCursorScreenPos();
+	const auto offset = ImGui::GetFrameHeight() * 0.5f;
+	const auto radius = offset * 0.6f;
+	const auto color = isDirty() ? IM_COL32(164, 0, 0, 255) : IM_COL32(164, 164, 164, 255);
 	drawlist->AddCircleFilled(ImVec2(pos.x + offset, pos.y + offset), radius, color);
 
 	ImGui::EndChild();
@@ -636,15 +692,7 @@ void Editor::showDiff() {
 
 void Editor::showFileOpen() {
 	// open a file selector dialog
-	IGFD::FileDialogConfig config;
-	config.countSelectionMax = 1;
-
-	config.flags =
-		ImGuiFileDialogFlags_Modal |
-		ImGuiFileDialogFlags_DontShowHiddenFiles |
-		ImGuiFileDialogFlags_ReadOnlyFileNameField;
-
-	ImGuiFileDialog::Instance()->OpenDialog("file-open", "Select File to Open...", ".*", config);
+	FileSelector::Instance().OpenFile();
 	state = State::openFile;
 }
 
@@ -654,15 +702,7 @@ void Editor::showFileOpen() {
 //
 
 void Editor::showSaveFileAs() {
-	IGFD::FileDialogConfig config;
-	config.countSelectionMax = 1;
-
-	config.flags =
-		ImGuiFileDialogFlags_Modal |
-		ImGuiFileDialogFlags_DontShowHiddenFiles |
-		ImGuiFileDialogFlags_ConfirmOverwrite;
-
-	ImGuiFileDialog::Instance()->OpenDialog("file-saveas", "Save File as...", "*", config);
+	FileSelector::Instance().SaveAs();
 	state = State::saveFileAs;
 }
 
@@ -733,12 +773,12 @@ void Editor::renderDiff() {
 		popup = false;
 	}
 
-	if (ImGui::BeginPopupModal("Changes since Opening File##diff", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+	if (ImGui::BeginPopupModal("Changes since Opening File##diff")) {
 		diff.Render("diff", viewport->Size * 0.8f, ImGuiChildFlags_Borders);
 
 		ImGui::Separator();
 		static constexpr float buttonWidth = 80.0f;
-		auto buttonOffset = ImGui::GetContentRegionAvail().x - buttonWidth;
+		const auto buttonOffset = ImGui::GetContentRegionAvail().x - buttonWidth;
 		bool sideBySide = diff.GetSideBySideMode();
 		bool wordWrap = diff.IsWordWrapEnabled();
 
@@ -771,22 +811,15 @@ void Editor::renderDiff() {
 
 void Editor::renderFileOpen() {
 	// handle file open dialog
-	ImVec2 maxSize = ImGui::GetMainViewport()->Size;
-	ImVec2 minSize = maxSize * 0.5f;
-	auto dialog = ImGuiFileDialog::Instance();
+	auto& dialog = FileSelector::Instance();
 
-	ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-	ImGui::SetNextWindowPos(center, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-
-	if (dialog->Display("file-open", ImGuiWindowFlags_NoCollapse, minSize, maxSize)) {
-		// open selected file (if required)
-		if (dialog->IsOk()) {
-			openFile(dialog->GetFilePathName());
-			state = State::edit;
+	if (dialog.Render()) {
+		// open selected file if required
+		if (dialog.SelectedOpenFile()) {
+			openFile(dialog.GetSelectedPath());
 		}
 
-		// close dialog
-		dialog->Close();
+		state = State::edit;
 	}
 }
 
@@ -797,26 +830,15 @@ void Editor::renderFileOpen() {
 
 void Editor::renderSaveAs() {
 	// handle saveas dialog
-	ImVec2 maxSize = ImGui::GetMainViewport()->Size;
-	ImVec2 minSize = maxSize * 0.5f;
-	auto dialog = ImGuiFileDialog::Instance();
+	auto& dialog = FileSelector::Instance();
 
-	ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-	ImGui::SetNextWindowPos(center, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-
-	if (dialog->Display("file-saveas", ImGuiWindowFlags_NoCollapse, minSize, maxSize)) {
+	if (dialog.Render()) {
 		// open selected file if required
-		if (dialog->IsOk()) {
-			filename = dialog->GetFilePathName();
+		if (dialog.SelectedSaveAs()) {
+			filename = dialog.GetSelectedPath();
 			saveFile();
 			state = State::edit;
-
-		} else {
-			state = State::edit;
 		}
-
-		// close dialog
-		dialog->Close();
 	}
 }
 
@@ -832,7 +854,7 @@ void Editor::renderConfirmClose() {
 		popup = false;
 	}
 
-	if (ImGui::BeginPopupModal("Confirm Close", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+	if (ImGui::BeginPopupModal("Confirm Close", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
 		ImGui::Text("This file has changed!\nDo you really want to delete it?\n\n");
 		ImGui::Separator();
 
@@ -868,7 +890,7 @@ void Editor::renderConfirmQuit() {
 		popup = false;
 	}
 
-	if (ImGui::BeginPopupModal("Quit Editor?", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+	if (ImGui::BeginPopupModal("Quit Editor?")) {
 		ImGui::Text("Your text has changed and is not saved!\nDo you really want to quit?\n\n");
 		ImGui::Separator();
 
@@ -904,7 +926,7 @@ void Editor::renderConfirmError() {
 		popup = false;
 	}
 
-	if (ImGui::BeginPopupModal("Error", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+	if (ImGui::BeginPopupModal("Error")) {
 		ImGui::Text("%s\n", errorMessage.c_str());
 		ImGui::Separator();
 
@@ -933,24 +955,45 @@ void Editor::renderAddSquiggle() {
 		popup = false;
 	}
 
-	if (ImGui::BeginPopupModal("Add Squiggle", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+	if (ImGui::BeginPopupModal("Add Squiggle", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
 		auto type = static_cast<int>(squiggleType);
 		if (ImGui::SliderInt("Type", &type, 1, 5)) { squiggleType = static_cast<size_t>(type); }
 		ImGui::ColorEdit4("Color", (float*) &squiggleColor);
 		ImGui::InputText("Tool Tip", squiggleToolTip, sizeof(squiggleToolTip));
+
+		static constexpr const char* stylesNames[] = { "Wave", "Background" };
+		static constexpr size_t styleCount = sizeof(stylesNames) / sizeof(stylesNames[0]);
+
+		if (ImGui::BeginCombo("Style", stylesNames[static_cast<size_t>(squiggleStyle)])) {
+			for (size_t i = 0; i < styleCount; i++) {
+				const auto currentStyle = static_cast<TextEditor::SquiggleStyle>(i);
+				const auto isSelected = (squiggleStyle == currentStyle);
+
+				if (ImGui::Selectable(stylesNames[i], isSelected)) {
+					squiggleStyle = currentStyle;
+				}
+
+				if (isSelected) {
+					ImGui::SetItemDefaultFocus();
+				}
+			}
+
+			ImGui::EndCombo();
+		}
+
 		ImGui::Separator();
 
 		static constexpr float buttonWidth = 80.0f;
 		ImGui::Indent(ImGui::GetContentRegionAvail().x - buttonWidth * 2.0f - 5.0f);
 
 		if (ImGui::Button("OK", ImVec2(buttonWidth, 0.0f))) {
-			ImU32 color = squiggleColor;
+			const ImU32 color = squiggleColor;
 
 			for (size_t i = 0; i < editor.GetNumberOfCursors(); i++) {
 				auto selection = editor.GetCursorSelection(i);
 
 				if (selection.start != selection.end) {
-					editor.AddSquiggle(selection.start, selection.end, squiggleType, color, squiggleToolTip);
+					editor.AddSquiggle(selection.start, selection.end, squiggleType, color, squiggleToolTip, squiggleStyle);
 				}
 			}
 
@@ -981,7 +1024,7 @@ void Editor::renderClearSquiggle() {
 		popup = false;
 	}
 
-	if (ImGui::BeginPopupModal("Clear Squiggles", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+	if (ImGui::BeginPopupModal("Clear Squiggles", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
 		auto type = static_cast<int>(squiggleType);
 		if (ImGui::SliderInt("Type", &type, 1, 5)) { squiggleType = static_cast<size_t>(type); }
 		ImGui::Separator();
@@ -1019,8 +1062,8 @@ void Editor::renderDebugInformation() {
 			information = getBackendDebugInformation();
 		}
 
-		auto& io = ImGui::GetIO();
-		auto& style = ImGui::GetStyle();
+		const auto& io = ImGui::GetIO();
+		const auto& style = ImGui::GetStyle();
 
 		information += "Dear ImGui:\n";
 		information += std::format("io.DisplaySize: {}, {}\n", io.DisplaySize.x, io.DisplaySize.y);
@@ -1033,8 +1076,7 @@ void Editor::renderDebugInformation() {
 
 		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 
-		ImGuiWindowFlags flags =
-			ImGuiWindowFlags_AlwaysAutoResize |
+		const ImGuiWindowFlags flags =
 			ImGuiWindowFlags_NoDecoration |
 			ImGuiWindowFlags_NoNav |
 			ImGuiWindowFlags_NoBringToFrontOnFocus |
@@ -1116,9 +1158,8 @@ void Editor::setLanguageByName(const std::string& name) {
 //	Editor::setLanguageByExtention
 //
 
-void Editor::setLanguageByExtention(const std::string& name) {
-	std::filesystem::path path(name);
-	auto extension = path.extension();
+void Editor::setLanguageByExtention(const std::filesystem::path& path) {
+	const auto extension = path.extension();
 
 	if (extension == ".cpp" || extension == ".h" || extension == ".hpp") {
 		setLanguage(TextEditor::Language::Cpp());
@@ -1171,14 +1212,14 @@ void Editor::toggleNavigationMode() {
 		io.ConfigFlags &= ~ImGuiConfigFlags_NavEnableGamepad;
 		io.ConfigNavCursorVisibleAuto = true;
 		io.ConfigNavCursorVisibleAlways = false;
-		notifications.Add(Notifications::Type::info, "Keyboard/gamepad navigation mode deactivated");
+		Toastr::Instance().Info("Keyboard/gamepad navigation mode deactivated");
 
 	} else {
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
 		io.ConfigNavCursorVisibleAuto = false;
 		io.ConfigNavCursorVisibleAlways = true;
-		notifications.Add(Notifications::Type::info, "Keyboard/gamepad navigation mode activated");
+		Toastr::Instance().Info("Keyboard/gamepad navigation mode activated");
 	}
 }
 
@@ -1198,12 +1239,12 @@ void Editor::toggleTrieAutoComplete() {
 
 		// connect autocomplete helper to editor
 		trieAutoComplete.Connect(&editor);
-		notifications.Add(Notifications::Type::info, "Autocomplete activated");
+		Toastr::Instance().Info("Autocomplete activated");
 
 	} else {
 		// disconnect autocomplete helper from editor
 		trieAutoComplete.Disconnect();
-		notifications.Add(Notifications::Type::info, "Autocomplete deactivated");
+		Toastr::Instance().Info("Autocomplete deactivated");
 	}
 }
 
@@ -1223,7 +1264,7 @@ void Editor::toggleLspBridge() {
 
 		// start the language server
 		if (lsp.Start(std::filesystem::current_path().string(), "clangd", {"--log=error"})) {
-			notifications.Add(Notifications::Type::info, "Started language server");
+			Toastr::Instance().Info("Started language server");
 
 			if (editor.GetLanguageName() == "C++") {
 				lsp.OpenDocument(filename, editor, lspOptions);
@@ -1231,14 +1272,14 @@ void Editor::toggleLspBridge() {
 
 		} else {
 			// report possible errors
-			notifications.Add(Notifications::Type::error, lsp.GetError(), 6000);
+			Toastr::Instance().Error(lsp.GetError(), 6000);
 			demoLspBridge = false;
 		}
 
 	} else {
 		// stop the language server
 		lsp.Stop();
-		notifications.Add(Notifications::Type::info, "Stopped language server");
+		Toastr::Instance().Info("Stopped language server");
 	}
 }
 
@@ -1250,10 +1291,25 @@ void Editor::toggleLspBridge() {
 void Editor::toggleShowWordAtMouse() {
 	// see if we are turning it on or off
 	if (showWordAtMouse) {
-		notifications.Add(Notifications::Type::info, "Show word at mouse activated");
+		Toastr::Instance().Info("Show word at mouse activated");
 
 	} else {
-		notifications.Add(Notifications::Type::info, "Show word at mouse deactivated");
+		Toastr::Instance().Info("Show word at mouse deactivated");
+	}
+}
+
+
+//
+//	Editor::toggleShowDocPosAtMouse
+//
+
+void Editor::toggleShowDocPosAtMouse() {
+	// see if we are turning it on or off
+	if (showDocPosAtMouse) {
+		Toastr::Instance().Info("Show DocPos at mouse activated");
+
+	} else {
+		Toastr::Instance().Info("Show DocPos at mouse deactivated");
 	}
 }
 
@@ -1265,18 +1321,18 @@ void Editor::toggleShowWordAtMouse() {
 void Editor::toggleLineMarkers() {
 	// see if we are turning it on or off
 	if (showLineMarkers) {
-		size_t errorlineNumber = 7;
-		size_t breakPointLineNumber = 9;
-		size_t justBecauseLineNumber = 12;
+		const size_t errorlineNumber = 7;
+		const size_t breakPointLineNumber = 9;
+		const size_t justBecauseLineNumber = 12;
 		editor.AddMarker(errorlineNumber, 0, IM_COL32(128, 0, 32, 128), "", "Error detected on this line");
 		editor.AddMarker(breakPointLineNumber, IM_COL32(0, 255, 32, 100), 0, "", "");
 		editor.AddMarker(breakPointLineNumber, IM_COL32(0, 255, 32, 100), 0, "", "");
 		editor.AddMarker(justBecauseLineNumber, IM_COL32(255, 224, 32, 100), IM_COL32(255, 224, 32, 100), "Just Because", "Just Because");
-		notifications.Add(Notifications::Type::info, "Line markers activated");
+		Toastr::Instance().Info("Line markers activated");
 
 	} else {
 		editor.ClearMarkers();
-		notifications.Add(Notifications::Type::info, "Line markers deactivated");
+		Toastr::Instance().Info("Line markers deactivated");
 	}
 }
 
@@ -1325,11 +1381,11 @@ void Editor::toggleLineDecorator() {
 			}
 		});
 
-		notifications.Add(Notifications::Type::info, "line decorator activated");
+		Toastr::Instance().Info("line decorator activated");
 
 	} else {
 		editor.ClearLineDecorator();
-		notifications.Add(Notifications::Type::info, "line decorator deactivated");
+		Toastr::Instance().Info("line decorator deactivated");
 	}
 }
 
@@ -1347,11 +1403,43 @@ void Editor::toggleCustomCaret() {
 			}
 		});
 
-		notifications.Add(Notifications::Type::info, "custom caret activated");
+		Toastr::Instance().Info("custom caret activated");
 
 	} else {
 		editor.ClearCustomCaretRenderer();
-		notifications.Add(Notifications::Type::info, "custom caret deactivated");
+		Toastr::Instance().Info("custom caret deactivated");
+	}
+}
+
+
+//
+//	Editor::toggleCustomLineNumbers
+//
+
+void Editor::toggleCustomLineNumbers() {
+	if (showCustomLineNumbers) {
+		editor.SetCustomLineNumberRenderer([](const TextEditor::CustomLineNumber& data) {
+			std::string buffer;
+			auto lineNo = data.lineNumber + 1;
+
+			if ((data.lineNumber == data.cursorLineNumber) || ((lineNo % 10) == 0)) {
+				buffer = std::to_string(data.lineNumber + 1);
+
+			} else if ((lineNo % 5) == 0) {
+				buffer = "-";
+
+			} else {
+				buffer = " .";
+			}
+
+			data.drawList->AddText(data.pos, data.color, buffer.c_str());
+		});
+
+		Toastr::Instance().Info("custom line number activated");
+
+	} else {
+		editor.ClearCustomLineNumberRenderer();
+		Toastr::Instance().Info("custom line number deactivated");
 	}
 }
 
@@ -1372,12 +1460,12 @@ void Editor::toggleContextMenus() {
 			ImGui::Text("Line %zu, index %zu", data.pos.line + 1, data.pos.index + 1);
 		});
 
-		notifications.Add(Notifications::Type::info, "Context menus activated");
+		Toastr::Instance().Info("Context menus activated");
 
 	} else {
 		editor.ClearLineNumberContextMenuCallback();
 		editor.ClearTextContextMenuCallback();
-		notifications.Add(Notifications::Type::info, "Context menus deactivated");
+		Toastr::Instance().Info("Context menus deactivated");
 	}
 }
 
@@ -1389,10 +1477,10 @@ void Editor::toggleContextMenus() {
 void Editor::toggleLineBreak() {
 	// see if we are turning it on or off
 	if (enableUnicodeLineBreakAlgorithm) {
-		notifications.Add(Notifications::Type::info, "Switched line break algorithm to unicode annex 14 mode");
+		Toastr::Instance().Info("Switched line break algorithm to unicode annex 14 mode");
 
 	} else{
-		notifications.Add(Notifications::Type::info, "Switched line break algorithm to simple mode");
+		Toastr::Instance().Info("Switched line break algorithm to simple mode");
 	}
 
 	lineBreakConfig.useUnicodeAnnex14 = enableUnicodeLineBreakAlgorithm;
@@ -1419,3 +1507,370 @@ void Editor::clearSquiggles() {
 		editor.ClearSquiggles();
 	}
 }
+
+
+//
+//	Editor::insertSimplifiedChinese
+//
+
+void Editor::insertSimplifiedChinese() {
+	ImGui::SetClipboardText((const char*) u8"宽敞");
+	editor.Paste();
+}
+
+
+//
+//	Editor::loadWString
+//
+
+void Editor::loadWString() {
+	static const std::wstring text = LR"(// Demo C++ Code
+
+// loaded from std::wstring
+
+// €€€€€€€
+// äÄöÖüÜß
+
+#include <iostream>
+#include <random>
+#include <vector>
+
+int main(int, char**) {
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_int_distribution<> distrib(0, 1000);
+	std::vector<int> numbers;
+
+	for (auto i = 0; i < 100; i++) {
+		numbers.emplace_back(distrib(gen));
+	}
+
+	for (auto n : numbers) {
+		std::cout << n << std::endl;
+	}
+
+	return 0;
+}
+)";
+
+	editor.SetText(text);
+}
+
+
+//
+//	Editor::loadU8String
+//
+
+#if (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L) || (__cplusplus >= 202002L)
+
+void Editor::loadU8String() {
+	static const std::u8string text = u8R"(// Demo C++ Code
+
+// loaded from std::u8string
+
+// €€€€€€€
+// äÄöÖüÜß
+
+#include <iostream>
+#include <random>
+#include <vector>
+
+int main(int, char**) {
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_int_distribution<> distrib(0, 1000);
+	std::vector<int> numbers;
+
+	for (auto i = 0; i < 100; i++) {
+		numbers.emplace_back(distrib(gen));
+	}
+
+	for (auto n : numbers) {
+		std::cout << n << std::endl;
+	}
+
+	return 0;
+}
+)";
+
+	editor.SetText(text);
+}
+
+#endif
+
+
+//
+//	Editor::loadU16String
+//
+
+void Editor::loadU16String() {
+	static const std::u16string text = uR"(// Demo C++ Code
+
+// loaded from std::u16string
+
+// €€€€€€€
+// äÄöÖüÜß
+
+#include <iostream>
+#include <random>
+#include <vector>
+
+int main(int, char**) {
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_int_distribution<> distrib(0, 1000);
+	std::vector<int> numbers;
+
+	for (auto i = 0; i < 100; i++) {
+		numbers.emplace_back(distrib(gen));
+	}
+
+	for (auto n : numbers) {
+		std::cout << n << std::endl;
+	}
+
+	return 0;
+}
+)";
+
+	editor.SetText(text);
+}
+
+
+//
+//	Editor::loadU32String
+//
+
+#ifdef IMGUI_USE_WCHAR32
+
+void Editor::loadU32String() {
+	static const std::u32string text = UR"(// Demo C++ Code
+
+// loaded from std::u32string
+
+// €€€€€€€
+// äÄöÖüÜß
+
+#include <iostream>
+#include <random>
+#include <vector>
+
+int main(int, char**) {
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_int_distribution<> distrib(0, 1000);
+	std::vector<int> numbers;
+
+	for (auto i = 0; i < 100; i++) {
+		numbers.emplace_back(distrib(gen));
+	}
+
+	for (auto n : numbers) {
+		std::cout << n << std::endl;
+	}
+
+	return 0;
+}
+)";
+
+	editor.SetText(text);
+}
+
+#endif
+
+
+//
+//	Editor::loadVectorOfStrings
+//
+
+void Editor::loadVectorOfStrings() {
+	static const std::vector<std::string_view> text = {
+		"// Demo C++ Code",
+		"#include <iostream>",
+		"#include <random>",
+		"#include <vector>",
+		"",
+		"int main(int, char**) {",
+		"	std::random_device rd;",
+		"	std::mt19937 gen(rd());",
+		"	std::uniform_int_distribution<> distrib(0, 1000);",
+		"	std::vector<int> numbers;",
+		"",
+		"	for (auto i = 0; i < 100; i++) {",
+		"		numbers.emplace_back(distrib(gen));",
+		"	}",
+		"",
+		"	for (auto n : numbers) {",
+		"		std::cout << n << std::endl;",
+		"	}",
+		"",
+		"	return 0;",
+		"}"
+	};
+
+	editor.SetText(text);
+}
+
+
+//
+//	Editor::loadVectorOfWStrings
+//
+
+void Editor::loadVectorOfWStrings() {
+	static const std::vector<std::wstring_view> text = {
+		L"// Demo C++ Code",
+		L"",
+		L"// loaded from std::vector<std::wstring_view>",
+		L"",
+		L"// €€€€€€€",
+		L"// äÄöÖüÜß",
+		L"",
+		L"#include <iostream>",
+		L"#include <random>",
+		L"#include <vector>",
+		L"",
+		L"int main(int, char**) {",
+		L"	std::random_device rd;",
+		L"	std::mt19937 gen(rd());",
+		L"	std::uniform_int_distribution<> distrib(0, 1000);",
+		L"	std::vector<int> numbers;",
+		L"",
+		L"	for (auto i = 0; i < 100; i++) {",
+		L"		numbers.emplace_back(distrib(gen));",
+		L"	}",
+		L"",
+		L"	for (auto n : numbers) {",
+		L"		std::cout << n << std::endl;",
+		L"	}",
+		L"",
+		L"	return 0;",
+		L"}"
+	};
+
+	editor.SetText(text);
+}
+
+
+//
+//	Editor::loadVectorOfU8Strings
+//
+
+#if (defined(_MSVC_LANG) && _MSVC_LANG >= 202002L) || (__cplusplus >= 202002L)
+
+void Editor::loadVectorOfU8Strings() {
+	static const std::vector<std::u8string_view> text = {
+		u8R"(// Demo C++ Code)",
+		u8R"()",
+		u8R"(// loaded from std::vector<std::u8string_view>)",
+		u8R"()",
+		u8R"(// €€€€€€€)",
+		u8R"(// äÄöÖüÜß)",
+		u8R"()",
+		u8R"(#include <iostream>)",
+		u8R"(#include <random>)",
+		u8R"(#include <vector>)",
+		u8R"()",
+		u8R"(int main(int, char**) {)",
+		u8R"(	std::random_device rd;)",
+		u8R"(	std::mt19937 gen(rd());)",
+		u8R"(	std::uniform_int_distribution<> distrib(0, 1000);)",
+		u8R"(	std::vector<int> numbers;)",
+		u8R"()",
+		u8R"(	for (auto i = 0; i < 100; i++) {)",
+		u8R"(		numbers.emplace_back(distrib(gen));)",
+		u8R"(	})",
+		u8R"()",
+		u8R"(	for (auto n : numbers) {)",
+		u8R"(		std::cout << n << std::endl;)",
+		u8R"(	})",
+		u8R"()",
+		u8R"(	return 0;)",
+		u8R"(})"
+	};
+
+	editor.SetText(text);
+}
+
+#endif
+
+
+//
+//	Editor::loadVectorOfU16Strings
+//
+
+void Editor::loadVectorOfU16Strings() {
+	static const std::vector<std::u16string_view> text = {
+		uR"(// Demo C++ Code)",
+		uR"()",
+		uR"(// loaded from std::vector<std::u16string_view>)",
+		uR"()",
+		uR"(// €€€€€€€)",
+		uR"(// äÄöÖüÜß)",
+		uR"()",
+		uR"(#include <iostream>)",
+		uR"(#include <random>)",
+		uR"(#include <vector>)",
+		uR"()",
+		uR"(int main(int, char**) {)",
+		uR"(	std::random_device rd;)",
+		uR"(	std::mt19937 gen(rd());)",
+		uR"(	std::uniform_int_distribution<> distrib(0, 1000);)",
+		uR"(	std::vector<int> numbers;)",
+		uR"()",
+		uR"(	for (auto i = 0; i < 100; i++) {)",
+		uR"(		numbers.emplace_back(distrib(gen));)",
+		uR"(	})",
+		uR"()",
+		uR"(	for (auto n : numbers) {)",
+		uR"(		std::cout << n << std::endl;)",
+		uR"(	})",
+		uR"()",
+		uR"(	return 0;)",
+		uR"(})"
+	};
+
+	editor.SetText(text);
+}
+
+
+//
+//	Editor::loadVectorOfU32Strings
+//
+
+#ifdef IMGUI_USE_WCHAR32
+
+void Editor::loadVectorOfU32Strings() {
+	static const std::vector<std::u32string_view> text = {
+		UR"(// Demo C++ Code)",
+		UR"()",
+		UR"(// loaded from std::vector<std::u16string_view>)",
+		UR"()",
+		UR"(// €€€€€€€)",
+		UR"(// äÄöÖüÜß)",
+		UR"()",
+		UR"(#include <iostream>)",
+		UR"(#include <random>)",
+		UR"(#include <vector>)",
+		UR"()",
+		UR"(int main(int, char**) {)",
+		UR"(	std::random_device rd;)",
+		UR"(	std::mt19937 gen(rd());)",
+		UR"(	std::uniform_int_distribution<> distrib(0, 1000);)",
+		UR"(	std::vector<int> numbers;)",
+		UR"()",
+		UR"(	for (auto i = 0; i < 100; i++) {)",
+		UR"(		numbers.emplace_back(distrib(gen));)",
+		UR"(	})",
+		UR"()",
+		UR"(	for (auto n : numbers) {)",
+		UR"(		std::cout << n << std::endl;)",
+		UR"(	})",
+		UR"()",
+		UR"(	return 0;)",
+		UR"(})"
+	};
+
+	editor.SetText(text);
+}
+
+#endif

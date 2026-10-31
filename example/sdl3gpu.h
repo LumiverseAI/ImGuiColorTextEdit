@@ -19,11 +19,13 @@
 #include <SDL3/SDL.h>
 
 #include "imgui.h"
+#include "imgui_freetype.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlgpu3.h"
 
 #include "editor.h"
 #include "dejavu.h"
+#include "notosans.h"
 
 
 //
@@ -94,12 +96,22 @@ int example() {
 	initInfo.MSAASamples = SDL_GPU_SAMPLECOUNT_1;
 	ImGui_ImplSDLGPU3_Init(&initInfo);
 
-	// setup our font
-	ImFontConfig config;
-	std::copy_n("DejaVu", 7, config.Name);
-	config.FontDataOwnedByAtlas = false;
+	// setup our fonts
 	io.Fonts->Clear();
-	io.Fonts->AddFontFromMemoryCompressedTTF(static_cast<const void*>(&dejavu), dejavuSize, 15.0f, &config);
+
+	ImFontConfig dejaVuConfig;
+	std::copy_n("DejaVu", 7, dejaVuConfig.Name);
+	dejaVuConfig.FontLoaderFlags = ImGuiFreeTypeLoaderFlags_LightHinting;
+	dejaVuConfig.FontDataOwnedByAtlas = false;
+	io.Fonts->AddFontFromMemoryCompressedTTF(static_cast<const void*>(&dejavu), dejavuSize, 15.0f, &dejaVuConfig);
+
+	ImFontConfig notoSansConfig;
+	std::copy_n("NotoSansSC", 11, notoSansConfig.Name);
+	notoSansConfig.FontLoaderFlags = ImGuiFreeTypeLoaderFlags_LightHinting;
+	notoSansConfig.FontDataOwnedByAtlas = false;
+	notoSansConfig.MergeMode = true;
+	io.Fonts->AddFontFromMemoryCompressedTTF(static_cast<const void*>(&notosans), notosansSize, 15.0f, &notoSansConfig);
+
 
 	// main loop
 	Editor editor;

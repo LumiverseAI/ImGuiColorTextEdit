@@ -25,18 +25,21 @@ add_executable(example
 	${EXTRAS}
 	editor.cpp
 	dejavu.cpp
+	notosans.cpp
 	main.cpp)
+
+set(LIBS imguifileselector imguitoastr lsp)
 
 if(D3D11)
 	target_compile_definitions(example PRIVATE D3D11)
-	target_link_libraries(example imguifd lsp)
+	target_link_libraries(example ${LIBS})
 else()
-	target_link_libraries(example SDL3::SDL3 SDL3_Headers imguifd lsp)
+	target_link_libraries(example SDL3::SDL3 SDL3_Headers ${LIBS})
 endif()
 
 target_compile_options(example PRIVATE
 	$<$<COMPILE_LANG_AND_ID:CXX,AppleClang,Clang,GNU>:-Werror -Wall -Wpedantic -Wextra>
-	$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/W4 /WX>)
+	$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/W4 /WX /utf-8>)
 
 if(CMAKE_GENERATOR STREQUAL "Xcode")
 	set_target_properties(example PROPERTIES XCODE_GENERATE_SCHEME ON)
