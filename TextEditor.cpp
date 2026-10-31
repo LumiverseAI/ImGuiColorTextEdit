@@ -33,7 +33,8 @@ TextEditor::TextEditor() {
 
 
 void TextEditor::reset() {
-	document.clear();
+	// The text loaders clear the document through clearDocument(), notifying
+	// the deletor before releasing line-specific user data.
 	transactions.reset();
 	cursors.clearAll();
 	clearMarkers();
