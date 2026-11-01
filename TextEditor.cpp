@@ -69,6 +69,7 @@ bool TextEditor::render(const char* title, const ImVec2& size, ImGuiChildFlags c
 	ImGui::PushStyleColor(ImGuiCol_ChildBg, ImGui::ColorConvertU32ToFloat4(palette.get(Color::background)));
 
 	if (ImGui::BeginChild(title, size, childFlags, windowFlags)) {
+		autocomplete.beginView();
 		// perform last part of scrolling reset here (as it requires the correct Dear ImGui context)
 		if (resetDearImGuiScrolling) {
 			ImGui::SetScrollX(0.0f);
@@ -8471,6 +8472,19 @@ void TextEditor::AutoComplete::setConfig(const AutoCompleteConfig* config) {
 	}
 
 	active = false;
+	requestActivation = false;
+	requestDeactivation = false;
+	ownerWindow = 0;
+}
+
+void TextEditor::AutoComplete::beginView() {
+	// Moving focus away invalidates this view's pending asynchronous result.
+	// Do this before keyboard handling so the new view can trigger completion.
+	if (ownerWindow != ImGui::GetCurrentWindow()->ID && ImGui::IsWindowFocused()) {
+		active = false;
+		requestActivation = false;
+		requestDeactivation = false;
+	}
 }
 
 
@@ -8576,6 +8590,11 @@ static bool renderSuggestion(const std::string_view& suggestion, const std::stri
 //
 
 bool TextEditor::AutoComplete::render(Document& document, Cursors& cursors, TypeSetter& typesetter, const Language* language, float textOffset, ImVec2 glyphSize) {
+	// Popup IDs are scoped to their originating child. Another presentation must
+	// neither activate this request nor interpret its absent popup as dismissal.
+	if (ownerWindow != ImGui::GetCurrentWindow()->ID) {
+		return false;
+	}
 	// see if we need to activate autocomplete mode
 	if (requestActivation) {
 		// apply popup delay
@@ -8790,6 +8809,8 @@ bool TextEditor::AutoComplete::isSpecialKeyPressed() {
 void TextEditor::AutoComplete::start(Cursors& cursors) {
 	// request start of autocomplete mode (can't be done here as the Dear ImGui context might not be right)
 	requestActivation = true;
+	requestDeactivation = false;
+	ownerWindow = ImGui::GetCurrentWindow()->ID;
 	currentLocation = cursors.getMain().getSelectionEnd();
 	activationTime = std::chrono::system_clock::now() + configuration.triggerDelay;
 }

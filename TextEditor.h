@@ -1822,6 +1822,9 @@ protected:
 		// set the autocomplete configuration
 		void setConfig(const AutoCompleteConfig* c);
 
+		// A shared document may be rendered in several distinct child windows.
+		void beginView();
+
 		// request autocomplete mode based on triggers (and if allowed by current state)
 		// return value indicates whether autocomplete was initiated
 		bool startTyping(Cursors& cursors);
@@ -1850,6 +1853,7 @@ protected:
 		bool active = false;
 		bool requestActivation = false;
 		bool requestDeactivation = false;
+		ImGuiID ownerWindow = 0;
 		DocPos currentLocation;
 		DocPos startLocation;
 		std::chrono::system_clock::time_point activationTime;
