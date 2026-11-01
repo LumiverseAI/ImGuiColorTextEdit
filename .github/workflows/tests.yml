@@ -1,0 +1,27 @@
+name: Component tests
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+jobs:
+  shared-completion:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: editor
+      - uses: actions/checkout@v5
+        with:
+          repository: pthom/imgui
+          ref: ce5a44c49a34ff677f8bab16e1d4e62ee1e31c04
+          path: imgui
+      - name: Configure
+        run: cmake -S editor/tests -B build -DIMGUI_DIR=${{ github.workspace }}/imgui
+      - name: Build
+        run: cmake --build build --config Release --parallel 2
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure --no-tests=error
