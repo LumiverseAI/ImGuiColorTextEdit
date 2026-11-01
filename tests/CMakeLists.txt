@@ -1,0 +1,16 @@
+cmake_minimum_required(VERSION 3.20)
+project(TextEditorTests LANGUAGES CXX)
+set(IMGUI_DIR "" CACHE PATH "Dear ImGui source directory")
+if(NOT EXISTS "${IMGUI_DIR}/imgui.cpp")
+    message(FATAL_ERROR "Set IMGUI_DIR to an existing Dear ImGui checkout")
+endif()
+enable_testing()
+add_executable(shared_completion shared_completion.cpp ../TextEditor.cpp
+    "${IMGUI_DIR}/imgui.cpp" "${IMGUI_DIR}/imgui_draw.cpp"
+    "${IMGUI_DIR}/imgui_tables.cpp" "${IMGUI_DIR}/imgui_widgets.cpp")
+target_compile_features(shared_completion PRIVATE cxx_std_17)
+target_include_directories(shared_completion PRIVATE .. "${IMGUI_DIR}")
+if(EXISTS "${IMGUI_DIR}/imgui_stacklayout.cpp")
+    target_sources(shared_completion PRIVATE "${IMGUI_DIR}/imgui_stacklayout.cpp")
+endif()
+add_test(NAME shared_completion COMMAND shared_completion)
