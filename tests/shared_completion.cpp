@@ -65,7 +65,8 @@ static void Run(bool reverse) {
             frame();
             io.AddKeyEvent(ImGuiKey_Enter, false);
             frame(); frame();
-            Require(editor.GetText() == "print", "Completion was not accepted once");
+            if (editor.GetText() != "print")
+                throw std::runtime_error("Completion was not accepted once: [" + editor.GetText() + "]");
             editor.Undo();
             Require(editor.GetText() == "pri", "Completion lost shared undo history");
         }
