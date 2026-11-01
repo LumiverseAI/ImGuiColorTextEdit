@@ -19,6 +19,7 @@ static void Run(bool reverse) {
         TextEditor editor;
         TextEditor::AutoCompleteConfig config;
         config.triggerOnTyping = false;
+        config.autoInsertSingleSuggestions = false;
         config.triggerDelay = std::chrono::milliseconds(0);
         int requests = 0;
         config.callback = [&](TextEditor::AutoCompleteState& state) {
@@ -65,10 +66,10 @@ static void Run(bool reverse) {
             frame();
             io.AddKeyEvent(ImGuiKey_Enter, false);
             frame(); frame();
-            if (editor.GetText() != "print")
+            if (editor.GetText() != "print\n" || editor.GetLineCount() != 1)
                 throw std::runtime_error("Completion was not accepted once: [" + editor.GetText() + "]");
             editor.Undo();
-            Require(editor.GetText() == "pri", "Completion lost shared undo history");
+            Require(editor.GetText() == "pri\n" && editor.GetLineCount() == 1, "Completion lost shared undo history");
         }
         editor.SetCursor(TextEditor::DocPos(0, 3));
         frame(0); frame(); frame();
